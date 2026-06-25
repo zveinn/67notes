@@ -1,0 +1,66 @@
+name: release
+
+# Build cross-platform binaries and publish a GitHub Release whenever a
+# version tag (e.g. v0.0.1) is pushed.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write # required to create the release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Build the React UI first — it is embedded into the Go binary via go:embed.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build web UI
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - name: Build release archives
+        env:
+          CGO_ENABLED: "0" # pure-Go build -> static, portable binaries
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME}"
+          mkdir -p build dist
+          targets="linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64"
+          for t in $targets; do
+            os="${t%/*}"; arch="${t#*/}"
+            bin="67notes"; [ "$os" = "windows" ] && bin="67notes.exe"
+            echo "==> building $os/$arch"
+            GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "-s -w" -o "build/$bin" .
+            name="67notes_${version}_${os}_${arch}"
+            if [ "$os" = "windows" ]; then
+              (cd build && zip "../dist/${name}.zip" "$bin")
+            else
+              tar -czf "dist/${name}.tar.gz" -C build "$bin"
+            fi
+            rm -f "build/$bin"
+          done
+          (cd dist && sha256sum * > checksums.txt)
+          ls -la dist
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}

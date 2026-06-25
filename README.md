@@ -12,17 +12,32 @@ The browser talks **only** to the Go backend — never directly to MinIO.
 
 ## Features
 
-- Side-panel directory tree, built from a single recursive list on load.
-- Split markdown editor / live preview (GFM: tables, task lists, etc.).
+- Side-panel directory tree, built from a single recursive list on load, with
+  inline new-note / new-folder actions and per-row **rename** and **delete** for
+  both notes and folders.
+- Markdown editor with **edit / split / preview** modes (preview is the default);
+  GFM rendering (tables, task lists, etc.). The formatting toolbar is shown only
+  while editing.
+- **Undo / redo** (`Ctrl/Cmd+Z`, `Ctrl/Cmd+Shift+Z` or `Ctrl+Y`) with coalesced
+  history, `Ctrl/Cmd+S` to save, and a **Cancel** button to discard unsaved edits.
+- **Remembers the last-open note** across browser refreshes (localStorage).
+- **Search** lives in the top bar and opens a dedicated `/search` page: one card
+  per matching file with a match count and a **“Display content”** toggle that
+  reveals every matching line with ±5 lines of context (adjacent matches are
+  merged) and the query highlighted. Backed by a case-insensitive content scan
+  across all `.md` notes (concurrent reads).
 - Image support — pasted, picked, or drag-free upload — stored in a **separate**
   `notes-images` bucket. Each upload is namespaced under its note's prefix with a
   UUID filename (`<note>/<uuid>-<name>`), so it's unique to that note and is
   **deleted automatically when the note (or its folder) is deleted**.
 - File attachments — uploaded to MinIO and linked from the note.
-- Case-insensitive **content search** across all `.md` notes (concurrent reads).
-- Create / rename-by-path / delete notes and folders.
 - Light / dark themes (persisted).
-- Single binary: the whole UI is embedded via `go:embed`.
+- Single binary: the whole UI is embedded via `go:embed`, with SPA fallback so
+  client-side routes (e.g. `/search`) resolve on a hard refresh.
+
+> **Rename caveat:** there is no move/rename endpoint, so the UI renames a note by
+> copying it to the new path and deleting the old one. Because deleting a note
+> cascades to its images, **renaming a note drops its attached images.**
 
 ## Build & run
 

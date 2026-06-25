@@ -27,7 +27,9 @@ them to start it (`./67notes`, default `:6767`) or set `NOTES_URL` (e.g.
 
 1. **Discover before acting.** To find notes, use `GET /api/search?q=` (full-text,
    case-insensitive) or `GET /api/tree` (full list). Then read specific notes with
-   `GET /api/note?path=`.
+   `GET /api/note?path=`. Search returns the **first** matching line per note (one
+   result per file, not every hit) — `GET /api/note` for the full content if you
+   need all occurrences or surrounding context.
 2. **Read the full API contract** in [reference.md](reference.md) for every
    endpoint's exact inputs/outputs, status codes, and JSON shapes. Consult it
    whenever you're unsure of a field or response.
@@ -42,10 +44,10 @@ them to start it (`./67notes`, default `:6767`) or set `NOTES_URL` (e.g.
 
 ## Quick recipes
 
-Search, then read the top hit:
+Search, then read the top hit (one match per file — the first matching line):
 ```bash
 BASE="${NOTES_URL:-http://localhost:6767}"
-curl -s "$BASE/api/search?q=kubernetes"          # -> [{path, snippet, line}, ...]
+curl -s "$BASE/api/search?q=kubernetes"          # -> [{path, snippet, line}, ...] (one per file)
 curl -s "$BASE/api/note?path=ops/k8s.md"          # -> {path, content}
 ```
 

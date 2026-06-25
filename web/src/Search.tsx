@@ -145,35 +145,72 @@ export default function Search({
 
       <div className="search-files">
         {results?.map((r) => (
-          <section key={r.path} className="search-file">
-            <button className="search-file-head" onClick={() => onOpen(r.path)}>
-              <span className="search-file-path">{r.path}</span>
-              <span className="search-file-count">{r.count}</span>
-            </button>
-            <div className="search-file-body">
-              {r.blocks.map((b, bi) => (
-                <div key={bi} className="search-block">
-                  {bi > 0 && <div className="search-gap" />}
-                  <pre className="search-snippet">
-                    {b.lines.map((ln) => (
-                      <div
-                        key={ln.n}
-                        className={`search-line${ln.match ? " match" : ""}`}
-                        onClick={() => onOpen(r.path)}
-                      >
-                        <span className="ln">{ln.n}</span>
-                        <span className="lc">
-                          {ln.match ? highlight(ln.text, query.trim()) : ln.text}
-                        </span>
-                      </div>
-                    ))}
-                  </pre>
-                </div>
-              ))}
-            </div>
-          </section>
+          <FileCard
+            key={r.path}
+            result={r}
+            query={query.trim()}
+            onOpen={onOpen}
+          />
         ))}
       </div>
     </div>
+  );
+}
+
+function FileCard({
+  result,
+  query,
+  onOpen,
+}: {
+  result: FileResult;
+  query: string;
+  onOpen: (path: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <section className="search-file">
+      <div className="search-file-head">
+        <button
+          className="search-file-open"
+          onClick={() => onOpen(result.path)}
+          title="Open note"
+        >
+          <span className="search-file-path">{result.path}</span>
+        </button>
+        <span className="search-file-count">{result.count}</span>
+        <button
+          className={`search-file-toggle${open ? " open" : ""}`}
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+        >
+          <span className="chev">▸</span>
+          {open ? "Hide content" : "Display content"}
+        </button>
+      </div>
+
+      {open && (
+        <div className="search-file-body">
+          {result.blocks.map((b, bi) => (
+            <div key={bi} className="search-block">
+              {bi > 0 && <div className="search-gap" />}
+              <pre className="search-snippet">
+                {b.lines.map((ln) => (
+                  <div
+                    key={ln.n}
+                    className={`search-line${ln.match ? " match" : ""}`}
+                    onClick={() => onOpen(result.path)}
+                  >
+                    <span className="ln">{ln.n}</span>
+                    <span className="lc">
+                      {ln.match ? highlight(ln.text, query) : ln.text}
+                    </span>
+                  </div>
+                ))}
+              </pre>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }

@@ -924,24 +924,29 @@ ul.tree,
 .search-file-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
-  width: 100%;
-  padding: 11px 14px;
-  border: none;
-  border-bottom: 1px solid var(--border);
-  border-radius: 0;
+  padding: 9px 12px;
   background: var(--surface-2);
+}
+.search-file-open {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
   font-family: var(--font-mono);
   font-size: 12.5px;
   font-weight: 600;
   color: var(--text);
+  padding: 4px 6px;
 }
-.search-file-head:hover {
-  background: var(--accent-soft);
+.search-file-open:hover {
   color: var(--accent);
+  background: var(--accent-soft);
 }
 .search-file-path {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -956,8 +961,34 @@ ul.tree,
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
+.search-file-toggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 10px;
+}
+.search-file-toggle:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.search-file-toggle .chev {
+  font-size: 9px;
+  transition: transform var(--t-fast);
+}
+.search-file-toggle.open .chev {
+  transform: rotate(90deg);
+}
 .search-file-body {
   padding: 5px 0;
+  border-top: 1px solid var(--border);
+  animation: fade 0.2s var(--ease) both;
 }
 .search-gap {
   margin: 5px 0;
