@@ -626,6 +626,18 @@ ul.tree,
   height: 30px;
   color: var(--accent-text);
 }
+.toolbar .cancel {
+  width: auto;
+  padding: 0 12px;
+  height: 30px;
+  font-weight: 500;
+  border-color: var(--border);
+  color: var(--text-dim);
+}
+.toolbar .cancel:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
 .toolbar .danger {
   font-size: 14px;
 }

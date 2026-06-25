@@ -9,6 +9,8 @@ interface Props {
   onNewNote: (dirPrefix: string) => void;
   onNewFolder: (dirPrefix: string) => void;
   onDeleteDir: (path: string) => void;
+  onRenameFile: (path: string) => void;
+  onDeleteFile: (path: string) => void;
   onSearch: (q: string) => void;
   searchResults: SearchMatch[] | null;
   searching: boolean;
@@ -93,6 +95,8 @@ export default function Sidebar(props: Props) {
                 onNewNote={props.onNewNote}
                 onNewFolder={props.onNewFolder}
                 onDeleteDir={props.onDeleteDir}
+                onRenameFile={props.onRenameFile}
+                onDeleteFile={props.onDeleteFile}
               />
             ))}
           </ul>
@@ -141,11 +145,21 @@ function TreeItem({
   onNewNote,
   onNewFolder,
   onDeleteDir,
+  onRenameFile,
+  onDeleteFile,
 }: {
   node: TreeNode;
   depth: number;
   activePath: string;
-} & Pick<Props, "onOpen" | "onNewNote" | "onNewFolder" | "onDeleteDir">) {
+} & Pick<
+  Props,
+  | "onOpen"
+  | "onNewNote"
+  | "onNewFolder"
+  | "onDeleteDir"
+  | "onRenameFile"
+  | "onDeleteFile"
+>) {
   const [open, setOpen] = useState(true);
   const pad = { paddingLeft: 6 + depth * 12 };
 
@@ -192,6 +206,8 @@ function TreeItem({
                 onNewNote={onNewNote}
                 onNewFolder={onNewFolder}
                 onDeleteDir={onDeleteDir}
+                onRenameFile={onRenameFile}
+                onDeleteFile={onDeleteFile}
               />
             ))}
           </ul>
@@ -209,6 +225,26 @@ function TreeItem({
         title={node.path}
       >
         <span className="label">{node.name}</span>
+        <span className="row-actions">
+          <button
+            title="Rename note"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRenameFile(node.path);
+            }}
+          >
+            ✎
+          </button>
+          <button
+            title="Delete note"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDeleteFile(node.path);
+            }}
+          >
+            🗑
+          </button>
+        </span>
       </div>
     </li>
   );

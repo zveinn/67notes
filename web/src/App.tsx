@@ -20,6 +20,17 @@ export default function App() {
   const [loadingNote, setLoadingNote] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Undo/redo history for the active note. Rapid edits are coalesced into one
+  // entry so Ctrl+Z steps back by word-chunks, not single keystrokes.
+  const history = useRef<{ past: string[]; future: string[]; ts: number }>({
+    past: [],
+    future: [],
+    ts: 0,
+  });
+  const resetHistory = () => {
+    history.current = { past: [], future: [], ts: 0 };
+  };
+
   const [searchResults, setSearchResults] = useState<SearchMatch[] | null>(
     null,
   );
@@ -60,6 +71,7 @@ export default function App() {
         localStorage.setItem("activePath", path);
         setContent(note.content);
         setSavedContent(note.content);
+        resetHistory();
       } catch (e) {
         setError((e as Error).message);
       } finally {
@@ -68,6 +80,45 @@ export default function App() {
     },
     [dirty],
   );
+
+  // setContent wrapper that records history for undo/redo.
+  const handleChange = useCallback(
+    (next: string) => {
+      const h = history.current;
+      const now = Date.now();
+      if (h.past.length === 0 || now - h.ts > 350) {
+        h.past.push(content);
+        if (h.past.length > 300) h.past.shift();
+      }
+      h.ts = now;
+      h.future = [];
+      setContent(next);
+    },
+    [content],
+  );
+
+  const undo = useCallback(() => {
+    const h = history.current;
+    if (!h.past.length) return;
+    h.future.push(content);
+    h.ts = 0; // next edit starts a fresh history entry
+    setContent(h.past.pop() as string);
+  }, [content]);
+
+  const redo = useCallback(() => {
+    const h = history.current;
+    if (!h.future.length) return;
+    h.past.push(content);
+    h.ts = 0;
+    setContent(h.future.pop() as string);
+  }, [content]);
+
+  const cancelEdit = useCallback(() => {
+    if (content === savedContent) return;
+    if (!confirm("Discard unsaved changes?")) return;
+    setContent(savedContent);
+    resetHistory();
+  }, [content, savedContent]);
 
   // Re-open the note we were last viewing across browser refreshes.
   const restored = useRef(false);
@@ -139,6 +190,50 @@ export default function App() {
     }
   }, [activePath, refreshTree]);
 
+  const deleteFile = useCallback(
+    async (path: string) => {
+      if (!confirm(`Delete ${path}?`)) return;
+      try {
+        await api.deleteNote(path);
+        if (activePath === path) {
+          setActivePath("");
+          localStorage.removeItem("activePath");
+          setContent("");
+          setSavedContent("");
+        }
+        await refreshTree();
+      } catch (e) {
+        setError((e as Error).message);
+      }
+    },
+    [activePath, refreshTree],
+  );
+
+  const renameNote = useCallback(
+    async (path: string) => {
+      const base = path.split("/").pop() ?? path;
+      const input = prompt("Rename note (renaming drops attached images):", base);
+      if (!input) return;
+      const name = input.trim();
+      if (!name || name === base) return;
+      const dir = path.includes("/")
+        ? path.slice(0, path.lastIndexOf("/") + 1)
+        : "";
+      let dest = dir + name;
+      if (!dest.toLowerCase().endsWith(".md")) dest += ".md";
+      try {
+        const note = await api.getNote(path);
+        await api.saveNote(dest, note.content);
+        await api.deleteNote(path);
+        await refreshTree();
+        if (activePath === path) await openNote(dest);
+      } catch (e) {
+        setError((e as Error).message);
+      }
+    },
+    [activePath, refreshTree, openNote],
+  );
+
   const deleteDir = useCallback(
     async (path: string) => {
       if (!confirm(`Delete folder ${path} and everything in it?`)) return;
@@ -188,6 +283,8 @@ export default function App() {
         onNewNote={newNote}
         onNewFolder={newFolder}
         onDeleteDir={deleteDir}
+        onRenameFile={renameNote}
+        onDeleteFile={deleteFile}
         onSearch={runSearch}
         searchResults={searchResults}
         searching={searching}
@@ -217,8 +314,11 @@ export default function App() {
               content={content}
               dirty={dirty}
               saving={saving}
-              onChange={setContent}
+              onChange={handleChange}
               onSave={saveNote}
+              onCancel={cancelEdit}
+              onUndo={undo}
+              onRedo={redo}
               onDelete={deleteNote}
             />
           )

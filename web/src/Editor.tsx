@@ -12,6 +12,9 @@ interface Props {
   saving: boolean;
   onChange: (next: string) => void;
   onSave: () => void;
+  onCancel: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
   onDelete: () => void;
 }
 
@@ -22,6 +25,9 @@ export default function Editor({
   saving,
   onChange,
   onSave,
+  onCancel,
+  onUndo,
+  onRedo,
   onDelete,
 }: Props) {
   const [view, setView] = useState<ViewMode>("preview");
@@ -69,17 +75,26 @@ export default function Editor({
     [insertAtCursor, path],
   );
 
-  // Ctrl/Cmd+S to save.
+  // Keyboard shortcuts: Ctrl/Cmd+S save, Ctrl/Cmd+Z undo, redo (Shift+Z / Y).
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod) return;
+      const key = e.key.toLowerCase();
+      if (key === "s") {
         e.preventDefault();
         if (dirty && !saving) onSave();
+      } else if (key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        onUndo();
+      } else if (key === "y" || (key === "z" && e.shiftKey)) {
+        e.preventDefault();
+        onRedo();
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [dirty, saving, onSave]);
+  }, [dirty, saving, onSave, onUndo, onRedo]);
 
   // Paste images directly from clipboard.
   const onPaste = useCallback(
@@ -127,49 +142,53 @@ export default function Editor({
         </span>
         <div className="spacer" />
 
-        <button title="Bold" onClick={() => wrapSelection("**")}>
-          <b>B</b>
-        </button>
-        <button title="Italic" onClick={() => wrapSelection("*")}>
-          <i>I</i>
-        </button>
-        <button title="Inline code" onClick={() => wrapSelection("`")}>
-          {"<>"}
-        </button>
-        <button title="Heading" onClick={() => insertAtCursor("\n## ")}>
-          H
-        </button>
-        <button title="Link" onClick={() => insertAtCursor("[text](url)")}>
-          🔗
-        </button>
+        {view !== "preview" && (
+          <>
+            <button title="Bold" onClick={() => wrapSelection("**")}>
+              <b>B</b>
+            </button>
+            <button title="Italic" onClick={() => wrapSelection("*")}>
+              <i>I</i>
+            </button>
+            <button title="Inline code" onClick={() => wrapSelection("`")}>
+              {"<>"}
+            </button>
+            <button title="Heading" onClick={() => insertAtCursor("\n## ")}>
+              H
+            </button>
+            <button title="Link" onClick={() => insertAtCursor("[text](url)")}>
+              🔗
+            </button>
 
-        <div className="sep" />
+            <div className="sep" />
 
-        <label className="filebtn" title="Insert image">
-          🖼️
-          <input
-            type="file"
-            accept="image/*"
-            hidden
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void uploadAndInsert(f, true);
-              e.target.value = "";
-            }}
-          />
-        </label>
-        <label className="filebtn" title="Attach file">
-          📎
-          <input
-            type="file"
-            hidden
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void uploadAndInsert(f, false);
-              e.target.value = "";
-            }}
-          />
-        </label>
+            <label className="filebtn" title="Insert image">
+              🖼️
+              <input
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void uploadAndInsert(f, true);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+            <label className="filebtn" title="Attach file">
+              📎
+              <input
+                type="file"
+                hidden
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void uploadAndInsert(f, false);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+          </>
+        )}
 
         <div className="spacer" />
 
@@ -187,6 +206,11 @@ export default function Editor({
 
         <div className="sep" />
 
+        {dirty && (
+          <button className="cancel" onClick={onCancel} disabled={saving}>
+            Cancel
+          </button>
+        )}
         <button
           className="primary"
           disabled={!dirty || saving}
