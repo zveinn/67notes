@@ -1,0 +1,10 @@
+# Go binary
+/67notes
+
+# Frontend
+web/node_modules/
+web/dist/
+
+# Editor / OS
+*.log
+.DS_Store
