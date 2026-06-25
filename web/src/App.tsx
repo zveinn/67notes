@@ -224,9 +224,10 @@ export default function App() {
           )
         ) : (
           <div className="empty">
-            <div>
-              <h2>67notes</h2>
-              <p>Select a note from the sidebar, or create a new one.</p>
+            <div className="empty-card">
+              <div className="empty-mark">67</div>
+              <h2>Your notes, beautifully kept</h2>
+              <p>Select a note from the sidebar, or create a new one to start writing.</p>
             </div>
           </div>
         )}

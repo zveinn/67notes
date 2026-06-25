@@ -123,7 +123,7 @@ export default function Editor({
       <div className="toolbar">
         <span className="path" title={path}>
           {path}
-          {dirty ? " ●" : ""}
+          {dirty ? <span className="dot"> ●</span> : ""}
         </span>
         <div className="spacer" />
 
@@ -142,6 +142,8 @@ export default function Editor({
         <button title="Link" onClick={() => insertAtCursor("[text](url)")}>
           🔗
         </button>
+
+        <div className="sep" />
 
         <label className="filebtn" title="Insert image">
           🖼️
@@ -182,6 +184,8 @@ export default function Editor({
             </button>
           ))}
         </div>
+
+        <div className="sep" />
 
         <button
           className="primary"

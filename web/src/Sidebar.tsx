@@ -39,7 +39,9 @@ export default function Sidebar(props: Props) {
   return (
     <aside className="sidebar">
       <div className="sidebar-head">
-        <span className="brand">67notes</span>
+        <span className="brand">
+          <span className="brand-mark">67</span>notes
+        </span>
         <div className="actions">
           <button title="New note" onClick={() => onNewNote("")}>
             ＋
@@ -51,15 +53,21 @@ export default function Sidebar(props: Props) {
       </div>
 
       <form className="search" onSubmit={submitSearch}>
-        <input
-          type="search"
-          placeholder="Search content…"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            if (e.target.value === "") onClearSearch();
-          }}
-        />
+        <div className="search-field">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="7" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            type="search"
+            placeholder="Search notes…"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              if (e.target.value === "") onClearSearch();
+            }}
+          />
+        </div>
       </form>
 
       <div className="tree-scroll">
