@@ -53,7 +53,7 @@
 }
 
 :root[data-theme="dark"] {
-  --bg: #0e0f13;
+  --bg: #000000;
   --surface: #181a20;
   --surface-2: #1f222a;
   --sidebar-bg: #0a0b0e;
@@ -65,15 +65,17 @@
   --accent: #8583f6;
   --accent-hover: #9694f8;
   --accent-text: #ffffff;
-  --accent-soft: rgba(133, 131, 246, 0.14);
+  /* Neutral elevation tints — purple stays an accent (text/border/indicator),
+     never a background wash, in dark mode. */
+  --accent-soft: rgba(255, 255, 255, 0.06);
   --accent-ring: rgba(133, 131, 246, 0.4);
   --danger: #f2585d;
   --danger-soft: rgba(242, 88, 93, 0.14);
   --code-bg: #12141a;
   --code-border: #262a33;
   --selection: rgba(133, 131, 246, 0.26);
-  --hl: rgba(133, 131, 246, 0.32);
-  --hl-row: rgba(133, 131, 246, 0.12);
+  --hl: rgba(255, 255, 255, 0.14);
+  --hl-row: rgba(255, 255, 255, 0.045);
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 6px 16px -4px rgba(0, 0, 0, 0.5), 0 2px 6px -2px rgba(0, 0, 0, 0.4);
@@ -1043,6 +1045,9 @@ ul.tree,
   border-radius: 3px;
   padding: 0 2px;
   font-weight: 600;
+}
+:root[data-theme="dark"] .search-snippet mark {
+  color: var(--accent);
 }
 
 /* ============================================================
