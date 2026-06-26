@@ -1,4 +1,6 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { api } from "./api";
 
 const CONTEXT = 5; // lines of context shown on each side of a match
@@ -15,27 +17,6 @@ interface FileResult {
   path: string;
   count: number; // number of matching lines
   blocks: Block[];
-}
-
-// Split a line into plain/highlighted segments around case-insensitive matches.
-function highlight(text: string, q: string): ReactNode[] {
-  if (!q) return [text];
-  const lower = text.toLowerCase();
-  const needle = q.toLowerCase();
-  const out: ReactNode[] = [];
-  let i = 0;
-  let k = 0;
-  for (;;) {
-    const idx = lower.indexOf(needle, i);
-    if (idx < 0) {
-      out.push(text.slice(i));
-      break;
-    }
-    if (idx > i) out.push(text.slice(i, idx));
-    out.push(<mark key={k++}>{text.slice(idx, idx + q.length)}</mark>);
-    i = idx + q.length;
-  }
-  return out;
 }
 
 // Build merged ±CONTEXT context blocks for one file's content.
@@ -145,12 +126,7 @@ export default function Search({
 
       <div className="search-files">
         {results?.map((r) => (
-          <FileCard
-            key={r.path}
-            result={r}
-            query={query.trim()}
-            onOpen={onOpen}
-          />
+          <FileCard key={r.path} result={r} onOpen={onOpen} />
         ))}
       </div>
     </div>
@@ -159,11 +135,9 @@ export default function Search({
 
 function FileCard({
   result,
-  query,
   onOpen,
 }: {
   result: FileResult;
-  query: string;
   onOpen: (path: string) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -193,20 +167,20 @@ function FileCard({
           {result.blocks.map((b, bi) => (
             <div key={bi} className="search-block">
               {bi > 0 && <div className="search-gap" />}
-              <pre className="search-snippet">
-                {b.lines.map((ln) => (
-                  <div
-                    key={ln.n}
-                    className={`search-line${ln.match ? " match" : ""}`}
-                    onClick={() => onOpen(result.path)}
-                  >
-                    <span className="ln">{ln.n}</span>
-                    <span className="lc">
-                      {ln.match ? highlight(ln.text, query) : ln.text}
-                    </span>
-                  </div>
-                ))}
-              </pre>
+              <div
+                className="search-snippet markdown-body"
+                onClick={(e) => {
+                  // Let links inside the rendered markdown work; clicking
+                  // anywhere else in the snippet opens the note.
+                  if (!(e.target as HTMLElement).closest("a")) {
+                    onOpen(result.path);
+                  }
+                }}
+              >
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {b.lines.map((ln) => ln.text).join("\n")}
+                </ReactMarkdown>
+              </div>
             </div>
           ))}
         </div>
