@@ -4,6 +4,7 @@ import { buildTree, type TreeNode } from "./tree";
 import Sidebar from "./Sidebar";
 import Editor from "./Editor";
 import Search from "./Search";
+import ChatPanel from "./ChatPanel";
 
 type Theme = "light" | "dark";
 
@@ -62,6 +63,18 @@ export default function App() {
   const [theme, setTheme] = useState<Theme>(
     () => (localStorage.getItem("theme") as Theme) || "dark",
   );
+
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatWidth, setChatWidth] = useState(
+    () => Number(localStorage.getItem("chatWidth")) || 380,
+  );
+
+  // Clamp + persist the panel width as the user drags its left border.
+  const resizeChat = useCallback((px: number) => {
+    const w = Math.max(280, Math.min(720, px));
+    setChatWidth(w);
+    localStorage.setItem("chatWidth", String(w));
+  }, []);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -295,7 +308,10 @@ export default function App() {
   );
 
   return (
-    <div className="app">
+    <div
+      className={chatOpen ? "app chat-open" : "app"}
+      style={{ "--chat-w": `${chatWidth}px` } as React.CSSProperties}
+    >
       <Sidebar
         tree={tree}
         activePath={activePath}
@@ -326,6 +342,13 @@ export default function App() {
           <div className="grow">
             {error && <span className="error">{error}</span>}
           </div>
+          <button
+            className={chatOpen ? "theme-toggle active" : "theme-toggle"}
+            title="Ask Claude"
+            onClick={() => setChatOpen((v) => !v)}
+          >
+            ?
+          </button>
           <button
             className="theme-toggle"
             title="Toggle theme"
@@ -364,6 +387,10 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {chatOpen && (
+        <ChatPanel onClose={() => setChatOpen(false)} onResize={resizeChat} />
+      )}
     </div>
   );
 }

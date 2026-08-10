@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"os/exec"
 	"path"
 	"strings"
 
@@ -30,6 +32,7 @@ func (a *apiServer) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/blob", a.handleUploadBlob)
 	mux.HandleFunc("GET /api/blob", a.handleGetBlob)
 	mux.HandleFunc("GET /api/search", a.handleSearch)
+	mux.HandleFunc("POST /api/chat", a.handleChat)
 	return mux
 }
 
@@ -236,6 +239,76 @@ func (a *apiServer) handleSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, matches)
+}
+
+// chatPreamble is injected ahead of every user message so the local Claude CLI
+// loads the /notes skill and can read, search and edit the user's notes while
+// answering. Each request is independent (one-shot) — no conversation state is
+// kept server-side.
+const chatPreamble = "/notes\n\n"
+
+// handleChat shells out to the local Claude CLI and streams its stdout straight
+// back to the browser as plain text, flushing as tokens arrive. The subprocess
+// is bound to the request context, so closing the connection kills it.
+func (a *apiServer) handleChat(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Message string `json:"message"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid body: "+err.Error())
+		return
+	}
+	msg := strings.TrimSpace(req.Message)
+	if msg == "" {
+		writeErr(w, http.StatusBadRequest, "empty message")
+		return
+	}
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeErr(w, http.StatusInternalServerError, "streaming unsupported")
+		return
+	}
+
+	cmd := exec.CommandContext(r.Context(), "claude", "-p", chatPreamble+msg,
+		"--dangerously-skip-permissions")
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "pipe: "+err.Error())
+		return
+	}
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Start(); err != nil {
+		writeErr(w, http.StatusInternalServerError, "start claude: "+err.Error())
+		return
+	}
+
+	// Past this point the status line is already 200, so stream errors are
+	// appended inline rather than sent as an HTTP error.
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(http.StatusOK)
+	flusher.Flush()
+
+	buf := make([]byte, 4096)
+	for {
+		n, rerr := stdout.Read(buf)
+		if n > 0 {
+			_, _ = w.Write(buf[:n])
+			flusher.Flush()
+		}
+		if rerr != nil {
+			break
+		}
+	}
+	if err := cmd.Wait(); err != nil {
+		if s := strings.TrimSpace(stderr.String()); s != "" {
+			fmt.Fprintf(w, "\n\n[claude error: %s]", s)
+		} else {
+			fmt.Fprintf(w, "\n\n[claude error: %s]", err.Error())
+		}
+		flusher.Flush()
+	}
 }
 
 // noteImagePrefix maps a note key to the prefix under which its blobs live in

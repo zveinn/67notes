@@ -1,5 +1,22 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import type { TreeNode } from "./tree";
+
+const FOLD_KEY = "sidebarFold";
+
+/** path → open; missing keys default to open (true). */
+function readFold(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(FOLD_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, boolean>;
+    }
+  } catch {
+    /* ignore corrupt storage */
+  }
+  return {};
+}
 
 interface Props {
   tree: TreeNode;
@@ -14,6 +31,21 @@ interface Props {
 
 export default function Sidebar(props: Props) {
   const { tree, activePath, onNewNote, onNewFolder } = props;
+  const [fold, setFold] = useState<Record<string, boolean>>(readFold);
+
+  const isOpen = useCallback(
+    (path: string) => fold[path] !== false,
+    [fold],
+  );
+
+  const toggleFold = useCallback((path: string) => {
+    setFold((prev) => {
+      const nextOpen = prev[path] === false;
+      const next = { ...prev, [path]: nextOpen };
+      localStorage.setItem(FOLD_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
 
   return (
     <aside className="sidebar">
@@ -39,6 +71,8 @@ export default function Sidebar(props: Props) {
               node={child}
               depth={0}
               activePath={activePath}
+              isOpen={isOpen}
+              onToggleFold={toggleFold}
               onOpen={props.onOpen}
               onNewNote={props.onNewNote}
               onNewFolder={props.onNewFolder}
@@ -57,6 +91,8 @@ function TreeItem({
   node,
   depth,
   activePath,
+  isOpen,
+  onToggleFold,
   onOpen,
   onNewNote,
   onNewFolder,
@@ -67,6 +103,8 @@ function TreeItem({
   node: TreeNode;
   depth: number;
   activePath: string;
+  isOpen: (path: string) => boolean;
+  onToggleFold: (path: string) => void;
 } & Pick<
   Props,
   | "onOpen"
@@ -76,17 +114,17 @@ function TreeItem({
   | "onRenameFile"
   | "onDeleteFile"
 >) {
-  const [open, setOpen] = useState(true);
+  const open = isOpen(node.path);
   const pad = { paddingLeft: 6 + depth * 12 };
 
   if (node.isDir) {
     return (
       <li>
         <div className="row dir" style={pad}>
-          <button className="twisty" onClick={() => setOpen((o) => !o)}>
+          <button className="twisty" onClick={() => onToggleFold(node.path)}>
             {open ? "▾" : "▸"}
           </button>
-          <span className="label" onClick={() => setOpen((o) => !o)}>
+          <span className="label" onClick={() => onToggleFold(node.path)}>
             {node.name}
           </span>
           <span className="row-actions">
@@ -118,6 +156,8 @@ function TreeItem({
                 node={c}
                 depth={depth + 1}
                 activePath={activePath}
+                isOpen={isOpen}
+                onToggleFold={onToggleFold}
                 onOpen={onOpen}
                 onNewNote={onNewNote}
                 onNewFolder={onNewFolder}

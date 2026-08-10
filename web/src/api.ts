@@ -90,4 +90,36 @@ export const api = {
   blobURL(key: string): string {
     return `/api/blob?key=${encodeURIComponent(key)}`;
   },
+
+  // Streams a chat reply from the local Claude CLI. onDelta is called with each
+  // chunk of text as it arrives; pass an AbortSignal to cancel mid-stream.
+  async chat(
+    message: string,
+    onDelta: (text: string) => void,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message }),
+      signal,
+    });
+    if (!res.ok || !res.body) {
+      let msg = `${res.status} ${res.statusText}`;
+      try {
+        const body = await res.json();
+        if (body?.error) msg = body.error;
+      } catch {
+        /* ignore */
+      }
+      throw new Error(msg);
+    }
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (value) onDelta(dec.decode(value, { stream: true }));
+    }
+  },
 };

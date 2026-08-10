@@ -31,6 +31,10 @@ The browser talks **only** to the Go backend — never directly to MinIO.
   UUID filename (`<note>/<uuid>-<name>`), so it's unique to that note and is
   **deleted automatically when the note (or its folder) is deleted**.
 - File attachments — uploaded to MinIO and linked from the note.
+- **Ask Claude** side panel (`?` button in the top bar) — a resizable, dockable
+  chat that streams answers from a **local Claude CLI**. It has the `notes` skill
+  wired in, so it can search, read, and edit your notes while answering. See
+  [AI chat](#ai-chat-ask-claude) for setup.
 - Light / dark themes (persisted).
 - Single binary: the whole UI is embedded via `go:embed`, with SPA fallback so
   client-side routes (e.g. `/search`) resolve on a hard refresh.
@@ -74,6 +78,86 @@ Flags (env var in parentheses), with defaults:
 
 Both buckets are created automatically if missing.
 
+## AI chat (Ask Claude)
+
+The **Ask Claude** panel (the `?` button in the top bar) talks to a **Claude CLI
+installed on the same machine as the server**, not to any hosted API directly.
+When you send a message, the backend shells out to:
+
+```sh
+claude -p "/notes\n\n<your message>" --dangerously-skip-permissions
+```
+
+and streams the CLI's stdout straight back to the browser. The leading `/notes`
+loads the bundled **notes skill**, which lets Claude search, read, and edit your
+notes (over this same HTTP API) while it answers. Each message is independent —
+no conversation history is kept server-side.
+
+### 1. Install the Claude CLI
+
+The server runs whatever `claude` is on its `PATH`. Install
+[Claude Code](https://code.claude.com/docs) with the native installer:
+
+```sh
+# macOS, Linux, WSL:
+curl -fsSL https://claude.ai/install.sh | bash
+# Windows PowerShell:
+#   irm https://claude.ai/install.ps1 | iex
+```
+
+Then authenticate it once. The simplest path is to run `claude` interactively and
+log in via the browser (credentials persist); for headless setups use a token or
+API key instead:
+
+```sh
+claude                                  # interactive: log in once via browser
+# headless alternatives:
+#   export CLAUDE_CODE_OAUTH_TOKEN=...   # from `claude setup-token`
+#   export ANTHROPIC_API_KEY=...         # from the Anthropic Console
+```
+
+Verify it works non-interactively — this is exactly how the server calls it:
+
+```sh
+claude -p "say hello" --dangerously-skip-permissions
+```
+
+### 2. Install the notes skill
+
+The skill ships **in this repo** at [`.claude/skills/notes/`](.claude/skills/notes/)
+and is picked up automatically — there's nothing extra to install **as long as
+you start the server from the repo root**, because the CLI discovers project
+skills relative to its working directory.
+
+To make the skill available everywhere (e.g. if you run the binary from another
+directory, or want to use it from a terminal too), copy it into your user skills:
+
+```sh
+mkdir -p ~/.claude/skills
+cp -r .claude/skills/notes ~/.claude/skills/notes
+```
+
+The skill resolves the server as `${NOTES_URL:-http://localhost:6767}`. If you
+run 67notes on a non-default address, export `NOTES_URL` **before** launching the
+server so the spawned CLI inherits it:
+
+```sh
+export NOTES_URL=http://localhost:9000
+./67notes -addr :9000
+```
+
+### Notes & caveats
+
+- **`--dangerously-skip-permissions`** is used because the skill needs to run
+  `curl`/`Bash` and print mode can't prompt for approval. This is fine for a
+  local, single-user, no-auth app — but it means anyone who can reach the server
+  can run the CLI with full tool access. **Don't expose 67notes to untrusted
+  networks** while the chat is enabled.
+- The chat requires `claude` on the **server's** `PATH`. If it's missing, the
+  `/api/chat` request returns an error that's surfaced in the panel.
+- Replies are streamed (`text/plain`, flushed per chunk); closing the panel or
+  hitting **Stop** cancels the request and kills the subprocess.
+
 ## API
 
 | Method | Path                      | Purpose                                  |
@@ -87,12 +171,15 @@ Both buckets are created automatically if missing.
 | POST   | `/api/blob`               | Upload image/file (multipart `file`, `note`) |
 | GET    | `/api/blob?key=`          | Fetch an image/file                      |
 | GET    | `/api/search?q=`          | Case-insensitive content search          |
+| POST   | `/api/chat`               | Stream a Claude CLI reply (body = `{message}`) |
 
 ## Layout
 
 ```
-main.go         flags, embed, SPA + API wiring
-storage.go      MinIO client: list/get/put/delete, dirs, blobs, search
-handlers.go     HTTP handlers + path validation
-web/            Vite + React + TypeScript frontend
+main.go               flags, embed, SPA + API wiring
+storage.go            MinIO client: list/get/put/delete, dirs, blobs, search
+handlers.go           HTTP handlers + path validation; /api/chat shells out to the Claude CLI
+.claude/skills/notes  the notes skill the chat panel loads (curl over this API)
+web/                  Vite + React + TypeScript frontend
+  src/ChatPanel.tsx   the resizable Ask Claude side panel
 ```
