@@ -8,6 +8,8 @@ import ChatPanel from "./ChatPanel";
 
 type Theme = "light" | "dark";
 
+const AUTO_SAVE_DELAY = 2000; // ms of inactivity before auto-saving
+
 function readRoute() {
   return {
     path: window.location.pathname,
@@ -39,6 +41,16 @@ export default function App() {
   const resetHistory = () => {
     history.current = { past: [], future: [], ts: 0 };
   };
+
+  // Auto-save debounce timer.
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Ref holders so the debounced save callback always sees the latest values
+  // without needing content/activePath in the effect dependency array.
+  const contentRef = useRef(content);
+  contentRef.current = content;
+  const activePathRef = useRef(activePath);
+  activePathRef.current = activePath;
 
   // Minimal client-side routing: "/" (home) and "/search?q=…".
   const [route, setRoute] = useState(readRoute);
@@ -98,7 +110,24 @@ export default function App() {
 
   const openNote = useCallback(
     async (path: string) => {
-      if (dirty && !confirm("Discard unsaved changes?")) return;
+      // Auto-save the current note before switching, instead of prompting.
+      if (dirty && activePathRef.current) {
+        if (autoSaveTimer.current !== null) {
+          clearTimeout(autoSaveTimer.current);
+          autoSaveTimer.current = null;
+        }
+        setSaving(true);
+        setError(null);
+        try {
+          await api.saveNote(activePathRef.current, contentRef.current);
+          setSavedContent(contentRef.current);
+        } catch (e) {
+          setError((e as Error).message);
+          setSaving(false);
+          return; // stay on current note on failure
+        }
+        setSaving(false);
+      }
       setLoadingNote(true);
       setError(null);
       try {
@@ -116,6 +145,36 @@ export default function App() {
     },
     [dirty],
   );
+  // Debounced auto-save: restarts the timer on every keystroke. When the user
+  // stops typing for AUTO_SAVE_DELAY ms, the note is saved automatically.
+  useEffect(() => {
+    if (!dirty || !activePath) return;
+    if (autoSaveTimer.current !== null) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(async () => {
+      autoSaveTimer.current = null;
+      const path = activePathRef.current;
+      const text = contentRef.current;
+      if (!path) return;
+      setSaving(true);
+      setError(null);
+      try {
+        await api.saveNote(path, text);
+        setSavedContent(text);
+        const items = await api.tree();
+        setTree(buildTree(items));
+      } catch (e) {
+        setError((e as Error).message);
+      } finally {
+        setSaving(false);
+      }
+    }, AUTO_SAVE_DELAY);
+    return () => {
+      if (autoSaveTimer.current !== null) {
+        clearTimeout(autoSaveTimer.current);
+        autoSaveTimer.current = null;
+      }
+    };
+  }, [dirty, activePath, content]);
 
   // setContent wrapper that records history for undo/redo.
   const handleChange = useCallback(
@@ -167,6 +226,11 @@ export default function App() {
 
   const saveNote = useCallback(async () => {
     if (!activePath) return;
+    // Cancel any pending auto-save since we're saving now.
+    if (autoSaveTimer.current !== null) {
+      clearTimeout(autoSaveTimer.current);
+      autoSaveTimer.current = null;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -179,7 +243,6 @@ export default function App() {
       setSaving(false);
     }
   }, [activePath, content, refreshTree]);
-
   const newNote = useCallback(
     async (dirPrefix: string) => {
       const name = prompt("New note name (e.g. ideas.md):");
